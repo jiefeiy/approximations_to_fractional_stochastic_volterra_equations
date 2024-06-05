@@ -1,7 +1,7 @@
 from scipy.optimize import minimize, lsq_linear
 from scipy.special import gamma, gammainc
-import orthopy
-import quadpy
+from scipy.linalg import eigh_tridiagonal
+from orthopy.tools import chebyshev
 
 
 def sort(a, b):
@@ -248,6 +248,36 @@ def Gaussian_parameters(H, N, T, mode):
     return partition, m
 
 
+def _scheme_from_rc_numpy(alpha, beta, int_1):
+    alpha = alpha.astype(np.float64)
+    beta = beta.astype(np.float64)
+    x, V = eigh_tridiagonal(alpha, np.sqrt(beta[1:]))
+    w = int_1 * V[0, :] ** 2
+    return x, w
+
+
+def scheme_from_rc(alpha, beta, int_1, mode: str | None = None):
+    alpha = np.asarray(alpha)
+    beta = np.asarray(beta)
+
+    if mode is None:
+        # try and guess the mode
+        if alpha.dtype in [np.float32, np.float64]:
+            mode = "numpy"
+        else:
+            raise ValueError(
+                'Please specify the `mode` ("sympy", "numpy", or "mpmath").'
+            )
+
+    fun = {
+        # "sympy": _scheme_from_rc_sympy,
+        "numpy": _scheme_from_rc_numpy,
+        # "mpmath": _scheme_from_rc_mpmath,
+    }[mode]
+
+    return fun(alpha, beta, int_1)
+
+
 def Gaussian_interval(H, m, a, b, fractional_weight=True):
     """
     Returns the nodes and weights of the Gauss quadrature rule of level m on [a, b].
@@ -263,8 +293,8 @@ def Gaussian_interval(H, m, a, b, fractional_weight=True):
         k = np.arange(2 * m) + 0.5 - H
     else:
         k = np.arange(1, 2 * m + 1)
-    alpha, beta, int_1 = orthopy.tools.chebyshev(moments=c_H(H) / k * (b ** k - a ** k))
-    return quadpy.tools.scheme_from_rc(alpha, beta, int_1)
+    alpha, beta, int_1 = chebyshev(moments=c_H(H) / k * (b ** k - a ** k))
+    return scheme_from_rc(alpha, beta, int_1)
 
 
 def Gaussian_on_partition(H, m, partition, fractional_weight=True):
@@ -1086,35 +1116,11 @@ class kernel_frac:
         self.eta_tilde = np.sqrt(2 * H) * eta
 
     def K_diag(self, Delta, N):
-        """
-        Return the diagonal values of calligraphic K_{i,j} as defined by Jim.
-        Parameters
-        ----------
-        Delta : double
-            Time increment for the simulation scheme, Delta = T / N.
-        N : int
-            Number of time steps in the simulation scheme.
-        Returns
-        -------
-        numpy array
-            The values \mathcal{K}_{j,j}(Delta), j=0, ..., N-1. Size = N.
-        """
         i = np.arange(N + 1)
         # Hint: i[-N:] = (i[1],...,i[N]), i[:N] = (i[0],...,i[N-1])
         return self.eta ** 2 * Delta ** (2 * self.H) * (i[-N:] ** (2 * self.H) - i[:N] ** (2 * self.H))
 
     def K_0(self, Delta):
-        """
-        Return the value of calligraphic K_0 as defined by Jim.
-        Parameters
-        ----------
-        Delta : double
-            Time increment for the simulation scheme, Delta = T / N..
-        Returns
-        -------
-        double
-            The value \mathcal{K}_0(Delta).
-        """
         return self.eta_tilde * Delta ** (self.H + 0.5) / (self.H + 0.5)
 
 
@@ -1135,35 +1141,9 @@ class kernel_rheston:
         return self.zeta * r ** (self.alpha - 1) * mittag_leffler(- self.lam * r ** self.alpha, self.alpha, self.alpha)
 
     def K_0(self, Delta):
-        """
-        Return the value of calligraphic K_0 as defined by Jim. Computed by
-        computationally expensive numerical integration.
-        Parameters
-        ----------
-        Delta : double
-            Time increment for the simulation scheme, Delta = T / N..
-        Returns
-        -------
-        double
-            The value \mathcal{K}_0(Delta).
-        """
         return integ.quad(lambda r: self._k(r), 0.0, Delta, epsabs=self.eps, epsrel=self.eps)[0]
 
     def K_diag(self, Delta, N):
-        """
-        Return the diagonal values of calligraphic K_{i,j} as defined by Jim.
-        Computed by computationally expensive numerical integration.
-        Parameters
-        ----------
-        Delta : double
-            Time increment for the simulation scheme, Delta = T / N.
-        N : int
-            Number of time steps in the simulation scheme.
-        Returns
-        -------
-        numpy array
-            The values \mathcal{K}_{j,j}(Delta), j=0, ..., N-1. Size = N.
-        """
         return np.array([integ.quad(lambda r: self._k(r + i * Delta) ** 2, 0.0, Delta,
                                     epsabs=self.eps, epsrel=self.eps)[0] for i in range(N)])
 

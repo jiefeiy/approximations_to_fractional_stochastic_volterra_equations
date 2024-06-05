@@ -8,7 +8,7 @@ MittagLeffleR and rpy2.
 """
 
 import os
-os.environ['R_HOME'] = 'C:/Users/breneis/AppData/Local/Programs/R/R-4.2.3'
+os.environ['R_HOME'] = 'D:/Program Files/R/R-4.4.0'
 
 import numpy as np
 from rpy2.robjects.packages import importr
