@@ -36,8 +36,8 @@ def get_n_batches(N, return_times, m):
     return n_batches, m_batch
 
 
-def samples(lambda_, nu, theta, V_0, T, nodes, weights, rho, S_0, r, m, N_time, sample_paths=False, return_times=None,
-            vol_only=False, stock_only=False, euler=False, qmc=True, rng=None, rv_shift=False, verbose=0):
+def samples(lambda_, nu, theta, V_0, T, nodes, weights, rho, S_0, r, m, N_time, sample_paths=True, return_times=None,
+            vol_only=False, stock_only=False, euler=True, qmc=False, rng=None, rv_shift=False, verbose=0):
     """
     Simulates sample paths under the Markovian approximation of the rough Heston model.
     :param lambda_: Mean-reversion speed
